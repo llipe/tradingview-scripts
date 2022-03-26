@@ -1,0 +1,110 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © budinweig
+
+//@version=5
+strategy("Supertrend + Squeeze Momentum + ADX Stratey", overlay=true)
+
+// Conditions
+// 1. Supertrend signals
+// 2. Squeeze momentum agrees (buy/sell) and it is releasing energy
+// 3. ADX is increasing
+
+requireADX      = input.bool(false, "Ignore ADX?")
+
+// *****************
+// Supertrend
+// *****************
+stFactor        = input.int(3, "Supertrend ATR Multiplier")
+stLenght        = input.int(10, "Supertrend ATR Period")
+
+[supertrend, stdirection] = ta.supertrend(stFactor, stLenght)
+plot(stdirection < 0 ? supertrend : na, "Up direction", color = color.green, style=plot.style_linebr)
+plot(stdirection > 0 ? supertrend : na, "Down direction", color = color.red, style=plot.style_linebr)
+
+
+// *****************
+// Squeeze Momentum
+// *****************
+length          = input.int(20, "Bollinger Band Length")
+mult            = input.float(2.0, "Bollinger Band MultFactor")
+lengthKC        = input.int(20, title="Keltner Channel Length")
+multKC          = input.float(1.5, title="Keltner Channel MultFactor")
+
+useTrueRange    = input.bool(true, "Use TrueRange (KC)")
+
+// *****************
+// Bollinger Bands
+// *****************
+source = close
+basis = ta.sma(source, length)
+stDev = multKC * ta.stdev(source, length)
+upperBB = basis + stDev
+lowerBB = basis - stDev
+
+// *****************
+// Calculate KC
+// *****************
+KCma = ta.sma(source, lengthKC)
+selectedRange = useTrueRange ? ta.tr : (high - low)
+rangema = ta.sma(selectedRange, lengthKC)
+upperKC = KCma + rangema * multKC
+lowerKC = KCma - rangema * multKC
+
+sqzOn  = (lowerBB > lowerKC) and (upperBB < upperKC)
+sqzOff = (lowerBB < lowerKC) and (upperBB > upperKC)
+noSqz  = (sqzOn == false) and (sqzOff == false)
+
+val = ta.linreg(source  -  math.avg(math.avg(ta.highest(high, lengthKC), ta.lowest(low, lengthKC)),ta.sma(close,lengthKC)), lengthKC,0)
+
+bcolor = val > 0 ? (val > nz(val[1]) ? color.lime : color.green) : (val < nz(val[1]) ? color.red : color.maroon)
+scolor = noSqz ? color.blue : sqzOn ? color.black : color.gray 
+//plot(val, color=bcolor, style=plot.style_histogram, linewidth=4)
+//plot(0, color=scolor, style=plot.style_cross, linewidth=2)
+
+// *****************
+// ADX
+// *****************
+adxlen                 = input.int(14, "DI Length", minval=1)
+adxlensig              = input.int(14, "ADX Smoothing", minval=1, maxval=50)
+adxLinReg           = input.int(7, "ADX Linear Regresion", minval=2)
+[diplus, diminus, adx] = ta.dmi(adxlen, adxlensig)
+adxTrend = ta.linreg(adx, adxLinReg, 0)
+adxUp = adxTrend > adxTrend[1] ? true : false
+//plot(adxUp ? 1:-1, color=color.white, linewidth=2)
+
+// *****************
+// ***** Trade *****
+// *****************
+atrLength           = input.int(14, "ATR Length for SL/TP")
+atr = ta.atr(atrLength)
+isLong = false
+isLong := nz(isLong[1], false)
+isShort = false
+isShort := nz(isShort[1], false)
+
+longCondition = (stdirection < 0.0) and (sqzOn == false and val > 0) and (adxUp or requireADX)
+shortCondition = (stdirection > 0.0) and (sqzOn == false and val < 0) and (adxUp or requireADX)
+
+showSignals         = input.bool(true, "Show Buy/Sell Signals?")
+plotshape(longCondition and not isLong and showSignals, title="Buy", text="Buy", location = location.belowbar, style = shape.labelup, size = size.tiny, color = color.lime, textcolor = color.white)
+plotshape(shortCondition and not isShort and showSignals, title="Sell", text="Sell", location = location.abovebar, style = shape.labelup, size = size.tiny, color = color.red, textcolor = color.white)
+
+if (longCondition and not isLong)
+    stopLoss = high - atr * 2
+    strategy.entry("long", strategy.long)
+    strategy.exit("exit", "long", stop=stopLoss)
+    isLong := true
+    isShort := false
+
+if (isLong and (stdirection > 0))
+    strategy.close("long")
+
+if (shortCondition and not isShort)
+    stopLoss = high + atr * 3
+    strategy.entry("short", strategy.short)
+    strategy.exit("exit", "short", stop=stopLoss)
+    isLong := false
+    isShort := true
+
+if (isShort and (stdirection < 0))
+    strategy.close("short")
