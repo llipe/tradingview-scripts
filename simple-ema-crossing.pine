@@ -1,0 +1,31 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © budinweig
+
+//@version=5
+indicator("Simple EMA Crossing - Llipe.com", overlay=true)
+
+showSignals     = input.bool(true, "Show Signals?")
+coloredEMA     = input.bool(true, "Use Colored EMA?")
+
+emaSlow         = input.int(50, "Slow EMA Length")
+emaFast         = input.int(10, "Fast EMA Length")
+
+source = close
+
+
+crossoverCondition = ta.crossover(ta.ema(source, emaFast), ta.ema(source, emaSlow))
+crossunderCondition = ta.crossunder(ta.ema(source, emaFast), ta.ema(source, emaSlow))
+crossCondition = ta.cross(ta.ema(source, emaFast), ta.ema(source, emaSlow))
+
+plotColor = color.orange
+plotColor2 = color.aqua
+
+if (coloredEMA)
+    plotColor := ta.ema(source, emaFast) > ta.ema(source, emaSlow) ? color.green : color.red
+    plotColor2 := color.silver
+    
+plot(ta.ema(source, emaFast), color = plotColor, linewidth=2)
+plot(ta.ema(source, emaSlow), color = plotColor2, linewidth=2)
+
+plotshape(crossoverCondition and showSignals, title="Long", text="Long", location = location.belowbar, style = shape.labelup, size = size.tiny, color = color.lime, textcolor = color.white)
+plotshape(crossunderCondition and showSignals, title="Short", text="Short", location = location.abovebar, style = shape.labelup, size = size.tiny, color = color.red, textcolor = color.white)
