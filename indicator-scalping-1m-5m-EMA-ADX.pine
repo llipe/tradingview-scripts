@@ -1,0 +1,67 @@
+// Versión: v1.1.3
+// Fecha: 2025-05-30
+// Hora: 13:45 (GMT-4)
+
+//@version=6
+indicator("Señales Scalping BTC M1/M5 - EMA + ADX", overlay=true)
+
+// === PARÁMETROS DE CONFIGURACIÓN ===
+emaFastLen     = input.int(9, title="EMA Rápida")
+emaSlowLen     = input.int(21, title="EMA Lenta")
+dmiLength      = input.int(14, title="DMI Periodo")
+dmiSmoothing   = input.int(14, title="Suavizado ADX")
+atrPeriod      = input.int(14, title="ATR Periodo")
+adxThreshold   = input.float(20, title="Umbral mínimo ADX", step=0.1)
+showFastEMA    = input.bool(false, title="Mostrar EMA Rápida")
+showSlowEMA    = input.bool(false, title="Mostrar EMA Lenta")
+
+// === CÁLCULO DE INDICADORES ===
+emaFast        = ta.ema(close, emaFastLen)
+emaSlow        = ta.ema(close, emaSlowLen)
+atr            = ta.atr(atrPeriod)
+[plusDI, minusDI, adx] = ta.dmi(dmiLength, dmiSmoothing)
+
+// === CONDICIONES DE SEÑAL ===
+rawBuySignal  = emaFast > emaSlow and close > high[1] and close > emaFast and adx > adxThreshold
+rawSellSignal = (emaFast < emaSlow or close < emaFast or adx < adxThreshold) and close < low[1]
+
+
+// === ESTADO PERSISTENTE SEPARADO ===
+var bool inBuyPosition = false
+var bool inSellPosition = false
+
+// === FLAGS TEMPORALES SEPARADOS ===
+buyEntry = rawBuySignal and not inBuyPosition and not inSellPosition
+buyExit = (emaFast < emaSlow or close < emaFast) and inBuyPosition
+
+sellEntry = rawSellSignal and not inSellPosition and not inBuyPosition
+sellExit = (emaFast > emaSlow or close > emaFast) and inSellPosition
+
+// === GESTIÓN DE SEÑALES SEPARADAS ===
+if buyEntry
+    label.new(bar_index, low - atr * 0.6, "Buy", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+    inBuyPosition := true
+    inSellPosition := false
+
+if buyExit
+    label.new(bar_index, high + atr * 0.6, "Exit Buy", style=label.style_label_down, color=color.yellow, textcolor=color.black, size=size.small)
+    inBuyPosition := false
+
+if sellEntry
+    label.new(bar_index, high + atr * 0.6, "Sell", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+    inSellPosition := true
+    inBuyPosition := false
+
+if sellExit
+    label.new(bar_index, low - atr * 0.6, "Exit Sell", style=label.style_label_up, color=color.yellow, textcolor=color.black, size=size.small)
+    inSellPosition := false
+
+// === ALERTAS SEPARADAS ===
+alertcondition(buyEntry, title="Entrada Compra", message="📈 Señal de Entrada Compra")
+alertcondition(buyExit, title="Salida Compra", message="🔄 Señal de Salida Compra")
+alertcondition(sellEntry, title="Entrada Venta", message="📉 Señal de Entrada Venta")
+alertcondition(sellExit, title="Salida Venta", message="🔄 Señal de Salida Venta")
+
+// === VISUALIZACIÓN OPCIONAL DE EMAs ===
+plot(showFastEMA ? emaFast : na, color=color.orange, title="EMA Rápida")
+plot(showSlowEMA ? emaSlow : na, color=color.blue, title="EMA Lenta")
