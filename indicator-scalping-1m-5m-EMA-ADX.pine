@@ -20,6 +20,7 @@ showSlowEMA    = input.bool(false, title="Mostrar EMA Lenta")
 macdFast       = input.int(12, title="MACD Línea Rápida")
 macdSlow       = input.int(26, title="MACD Línea Lenta")
 macdSignal     = input.int(9, title="MACD Señal")
+macdTimeframe  = input.timeframe("5", title="MACD Timeframe", options=["1", "3", "5", "15", "30", "45", "60", "120", "180", "240", "D", "W"])
 
 // === CÁLCULO DE INDICADORES ===
 emaFast        = ta.ema(close, emaFastLen)
@@ -27,9 +28,9 @@ emaSlow        = ta.ema(close, emaSlowLen)
 atr            = ta.atr(atrPeriod)
 [plusDI, minusDI, adx] = ta.dmi(dmiLength, dmiSmoothing)
 
-// Cálculo del MACD en timeframe de 5 minutos
-[macdLine, signalLine, _] = request.security(syminfo.tickerid, "5", ta.macd(close, macdFast, macdSlow, macdSignal))
-macdSlope = request.security(syminfo.tickerid, "5", macdLine - macdLine[1])
+// Cálculo del MACD en timeframe configurable
+[macdLine, signalLine, _] = request.security(syminfo.tickerid, macdTimeframe, ta.macd(close, macdFast, macdSlow, macdSignal))
+macdSlope = request.security(syminfo.tickerid, macdTimeframe, macdLine - macdLine[1])
 
 // === CONDICIONES DE SEÑAL ===
 rawBuySignal  = emaFast > emaSlow and close > high[1] and close > emaFast and adx > adxThreshold and macdSlope > 0  // Pendiente positiva para compras
@@ -48,7 +49,7 @@ sellExit = (emaFast > emaSlow or close > emaFast) and inSellPosition
 
 // === GESTIÓN DE SEÑALES SEPARADAS ===
 if buyEntry
-    label.new(bar_index, low - atr * 1, "Buy", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+    label.new(bar_index, low - atr * 1, "Buy\nMACD Slope:\n" + str.tostring(macdSlope, "#.####"), style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
     inBuyPosition := true
     inSellPosition := false
 
@@ -57,7 +58,7 @@ if buyExit
     inBuyPosition := false
 
 if sellEntry
-    label.new(bar_index, high + atr * 1, "Sell", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+    label.new(bar_index, high + atr * 1, "Sell\nMACD Slope:\n" + str.tostring(macdSlope, "#.####"), style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
     inSellPosition := true
     inBuyPosition := false
 
